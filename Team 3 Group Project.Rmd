@@ -1,4 +1,3 @@
-Hello this is a tester
 ---
 title: "A Report for OmniCorp into the COVID-19 pandemic"
 author: "Group 3"
