@@ -297,10 +297,13 @@ We also saw earlier that Europe and North America eased off government intervent
 While this model is useful to observe a general trend, it does have its limitations. Most notably it relies on a constant value of $T_c$, but an infected individual is unlikely to pass on the virus at one specific time. Also, the value of $T_c = {4}$ is only from early studies and has yet to be confirmed. Additionally, cases are only reported once a positive test has been confirmed. During early days of the pandemic, many country’s testing infrastructure was limited resulting in cases left unreported.  
 # 3. Changes in behaviour
 ```{r chunkstringency, echo=FALSE}
+#creates data set with Countriesrespective continents and three letter ISO codes
 RawTidyCovidData<-as_tibble(RawTidyCovidData)
 CountriesIndex<- dplyr::select(Countries, "Continent_Name","Country_Name","Three_Letter_Country_Code" )
 CountriesIndex<-rename(CountriesIndex, c("continent"="Continent_Name", "country"="Country_Name","iso3c"= "Three_Letter_Country_Code"))
 
+#creates data set of Stringency for each country at specific dates
+#filters for required continents 
 StringencyData <- StrIdxData
 StringencyData <- StringencyData %>%
   mutate(Date = as.Date(parse_datetime(StringencyData$Date,
@@ -313,8 +316,10 @@ StringencyData$continent <- as.factor(StringencyData$continent)
 StringencyData <- filter(StringencyData, continent %in% c("Europe", "North America", "South America"))
 StringencyData<- StringencyData[, 1:5]
 
+#Data of GDPs per capita for specific countries 
 GDPperCapitaData<-rename(GDPperCapitaData, "Entity"="country", "GDPperCap" = "2018")
 
+#Data set created with changing activity levels of each country, filtered for requiered continents
 TidyDataAllVariables<-full_join(RawTidyCovidData, CountriesIndex, by = "iso3c")
 TidyDataAllVariables<- { TidyDataAllVariables %>% 
     mutate(country.x = factor(country.x), continent = factor(continent)) %>%
@@ -326,6 +331,7 @@ SubDataSelection<-TidyDataAllVariables[,c(1,2,3,11:26,36)]
 SubDataSelection<- mutate(SubDataSelection, day_of_week = weekdays(date))
 SubDataSelection2 <- SubDataSelection[, c(1,2,3,12:17,20,21)]
 
+#combines stringency data with data of changing activity levels 
 Stringency_Activity_Data <- left_join(StringencyData[,c(1,2,3,4)],SubDataSelection2[,c(1,3,4)], by = c("iso3c","date"))
 CountryFactors<-TidyDataAllVariables[,c(1,2,27:32,34)]
 
@@ -336,9 +342,9 @@ The graphs below examine the changes in activity of people in Europe and America
 The second graph shows the changing ‘Stringency Index’ (Hale et al., 2020) over time. The black line is a line of best fit calculated for all countries in Europe and America, showing the changing stringency in overall government response over time. Additionally, the coloured lines show the changes in stringency index for 7 major countries where OmniCorp operate.
 ```{r chunkactivityplots, echo=FALSE, warning=FALSE, message=FALSE,  fig.height = 4, fig.align='center'}
 
-EuropeCountrySelection <- c("United Kingdom", "Spain", "Italy", "France", "Russia")
-NorthAmericaCountrySelection <- c("Canada", "United States", "Mexico", "Puerto Rico", "Panama")
-SouthAmericaCountrySelection <- c("Brazil","Argentina", "Peru", "Chile", "Venezuela")
+# Selec
+
+#creates selections of countries used in the graphs 
 CountrySelection <- c("United Kingdom", "United States", "Russia", "Poland", "France")
 CountrySelection2 <- c("United Kingdom", "Italy", "Poland", "Chile", "Brazil", "Canada", "Mexico")
 
@@ -386,16 +392,20 @@ The following looks at the direct relationship between Stringency Index (Hale at
 # aggregating, calculating average retail/rec activity for  the same date and Stringency index 
 avg_rec_activity<-aggregate(Stringency_Activity_Data["gcmr_retail_recreation"], by = Stringency_Activity_Data[c("iso3c","stringency_index")],FUN = function(z) mean(z, na.rm = TRUE))
 
+#combines stringency data to avg_rec_activity for each country and date 
 avg_rec_activity<-{left_join(avg_rec_activity,Stringency_Activity_Data[,c(1,2)],by = c("iso3c")) %>%
     distinct()}
 avg_rec_activity<-as_tibble(distinct(left_join(avg_rec_activity, GDPperCapitaData, by = "Entity")))
+#subselects those observations without NA values for average rec activity, stringency and retail/rec activity
 avg_rec_activity<-{subset(avg_rec_activity,!(is.na(GDPperCap)|is.na(stringency_index)|is.na(gcmr_retail_recreation))) %>%
     mutate(bin_GDPpercap = cut_interval(GDPperCap, n=9))}
 avg_rec_activity$bin_GDPpercap<-as.factor(avg_rec_activity$bin_GDPpercap)
 
+#creates labels of facets used in the Income graph 
 bin_GDPpercap.labs <- c("1660 and 11900","11900 and 22100","22100 and 32300","32300 and 42600","42600 and 52800","52800 and 63000","63000 and 73200","73200 and 83500","83500 and 93700")
 names(bin_GDPpercap.labs) <- levels(avg_rec_activity$bin_GDPpercap)
 
+#Plot showing impact of Income on Stringency effect on retail activity 
 Stringency_Activity_plot <- {ggplot(data = avg_rec_activity) +
     geom_point(mapping = aes(x = stringency_index,y = gcmr_retail_recreation), color = "black", size = 1, show.legend = FALSE)+
     geom_smooth(mapping = aes(x = stringency_index, y = gcmr_retail_recreation), method = "loess", size = 0.5, color = "darkslategray1",fullrange=TRUE)+
@@ -407,10 +417,11 @@ Stringency_Activity_plot <- {ggplot(data = avg_rec_activity) +
 
 Stringency_Activity_plot
 ```  
-We can see that for all income levels, at higher stringency levels the activity in retail and recreational areas decreases at a higher rate (shown by the concave slope of the graphs). An exception would be GDPs per capita between 63000 and 73200 where we see a slight peak - possibly caused by a lack of data for that split.   
-For all income levels, at higher stringency levels the activity in retail and recreational areas decreases at a higher rate (shown by the concave slope of the graphs). An exception would be GDPs per capita between 63000 and 73200 where we see a slight peak - possibly caused by a lack of data for that split.  
-Furthermore, at higher income levels, the stringency index has a greater effect on retail/recreational activity than at lower income levels. At a stringency level of 80, there is an average 75% decrease in recreational/retail activity for countries with a GDP per capita between 83500 and 93700 \$ but only a 40% decrease for those between 1660 and 11900. For those between 42600 and 52800 there is a 65% decrease. It is important to note however that the data collected for the countries with the highest GDP per capita level (83500-93700 \$) was of only one country, and thus there is much uncertainty as to whether that country having a greater decrease in recreation/retail activity was because of their GDP per capita.  
-It is not clear from the above whether the difference in response to government restrictions is due to a specific individuals wealth, or the overall wealth of a country. To determine this more conclusively, an analysis could be performed with specific areas within countries. The GDP per capita for specific cities for example is likely to be more reflective of an individual’s wealth within that city than the overall GDP per capita of a country. Given more data and time, a regression model could be constructed, to try and obtain an actual value for the influence of GDP on Retail and Recreation Activity.  
+At higher income levels, the stringency index has a greater effect on retail/recreational activity than at lower income levels. At a stringency level of 80, there is an average 75% decrease in recreational/retail activity for countries with a GDP per capita between 83500 and 93700 $ but only a 40% decrease for those between 1660 and 11900. For those between 42600 and 52800 there is a 65% decrease. It is important to note, that since the data collected for the countries with the highest GDP per capita level (83500-93700 $) was of only one country, there is much uncertainty as to whether that country having a greater decrease in recreation/retail activity was because of their GDP per capita.
+A possible reason for this is the following: In countries with higher income levels, average disposable income would be greater, so people would have more money to spend in hospitality sectors, before ‘Lockdown’. Governments response after lockdown in those countries would thus have a greater effect on activity levels in those sectors. It could also be due to technological differences: better access to e-commerce allowing people from higher income countries the option of online delivery. 
+It is important to note, that since the data collected for the countries with the highest GDP per capita level (83500-93700 $) was of only one country, there is much uncertainty as to whether that country having a greater decrease in recreation/retail activity was because of their GDP per capita.
+It is not clear from the above whether the difference in response to government restrictions is due to a specific individuals wealth, or the overall wealth of a country. To determine this more conclusively, an analysis could be performed with specific areas within countries. The GDP per capita for specific cities for example is likely to be more reflective of an individual’s wealth within that city than the overall GDP per capita of a country. Given more data and time, a regression model could be constructed, to try and obtain an actual value for the influence of GDP on Retail and Recreation Activity.
+ 
 
 # 4. Changing Commercial Behaviours   
 
