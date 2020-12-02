@@ -1,0 +1,693 @@
+---
+title: "A Report for OmniCorp into the COVID-19 pandemic"
+author: "Group 3"
+date: "30 November 2020"
+output: pdf_document
+geometry: margin=2cm
+---
+
+```{r checksetup, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+#conencting to the required libraries
+library(car)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(tidyr)
+library(forcats)
+library(rio)
+library(cowplot)
+library(ggpubr)
+library(readxl)
+library(tidyverse)
+library(MASS)
+library(zoo)
+library(readr)
+library(gghighlight)
+
+#importing the required datasets
+StrIdxData <- import("covid-stringency-index.csv", setclass = "tibble")
+Countries<- import("Country Continent Codes.xlsx", setclass = "tibble")
+Countries1 <- read.csv("Countries.csv")
+StringencyData <- import("covid-stringency-index.csv")
+GDPperCapitaData<-as_tibble(import("GDPperCapita2018.xlsx"))
+Trade1 <- import("Retail_Trade.csv", setclass = "tibble")
+Trade2 <- import("Online_Sales.csv", setclass = "tibble")
+RawTidyCovidData<-read.csv("tidycovid19.csv")
+
+#importing stock data
+NYSE <- read.csv("Stock-NYA.csv")
+bove <- read.csv("Stock-BVSP.csv")
+ftse<- read.csv("Stock-FTSE.csv")
+
+#importing uk retail stock data
+tesco <- read.csv("UK-TSCO.L.csv")
+morr <-read.csv("UK-MRW.L.csv")
+sain <-read.csv("UK-SBRY.L.csv")
+mands <-read.csv("UK-MKS.L.csv")
+ocado <- read.csv("UK-OCDO.L.csv")
+
+#importing us tech stock data
+amzn <-read.csv("US-AMZN.csv")
+appl <- read.csv("US-AAPL.csv")
+micro <- read.csv("US-MSFT.csv")
+goog <- read.csv("US-GOOG.csv")
+face <- read.csv("US-FB.csv")
+
+```
+
+# 1. Introduction  
+There is much global discussion surrounding the true impact of COVID-19. This report analyses the early impacts of the pandemic, particularly those affecting retail and hospitality sectors, and their potential reasons. OmniCorp has been affected severely in this area, with many restaurants and hospitality outlets temporarily forced to close due to 'Lockdown' measures. Furthermore, significant changes to consumer shopping behaviour has led to the need to develop new business strategies.  
+COVID-19 is a new contagious virus. Its more extreme symptoms include ‘acute respiratory distress syndrome’ and it has led to a large number of deaths around the world, particularly among the old and vulnerable. One of the reasons COVID-19 has been deemed so dangerous is its ‘incubation period’; a person can be infected for 48-72 hours before experiencing symptoms, allowing the virus to spread significantly before an individual realises they have it. A high percentage of cases are also asymptomatic, leading to further spreading. To prevent this spread, governments across the world have been forced to respond with strict 'lockdown' measures and other forms of interventions.  
+A recent project by OxCGRT (Hale et al., 2020) has quantified global government restrictions in the form of a stringency index. This index is calculated as a value of 1 to 100, aggregated from 9 different indicators, and reflects the level of intensity in the governments containment and closure policies, alongside the intensity of public health information campaigns. The higher the stringency index, the stricter the physical measures the government has put in place. Below are graphs showing the changing intensity of government measures in each of the three continents in which OmniCorp operates.  
+```{r chunkintroduction, echo= FALSE, message = FALSE, warning = FALSE, fig.height=2.7, fig.align='center'}
+StringencyData = StrIdxData
+colnames(StringencyData) <- c("country", "lettercode", "Date", "strength") 
+CountriesIndex <- Countries
+colnames(CountriesIndex) <- c("continent", "continentcode", "name", "countrycode1", "lettercode", "number")
+CountriesIndex <- filter(CountriesIndex, lettercode %in% StringencyData$lettercode)
+# Join the data frames and implement categorical data as factors
+StringencyData <- left_join(StringencyData, CountriesIndex, by = "lettercode")
+StringencyData <- mutate(StringencyData, lettercode = factor(lettercode), 
+                    continent = factor(continent))
+StringencyData <- subset(StringencyData, select = -c(continentcode, name, countrycode1, number))
+StringencyData <- StringencyData %>% 
+   mutate(country = factor(country), Date = as.Date(Date, "%d/%m/%y")) %>% 
+   arrange(country) %>% na.omit
+
+#Filtering stringency indexes only from Europe
+Sub_Europe <- filter(StringencyData, continent == "Europe")
+EuropePlot <- ggplot(Sub_Europe, aes(x = Date, y = strength, group = country)) +
+  geom_line(colour = "black", se = FALSE, alpha=0.5, stat = 'smooth') + labs(x = " ", y = "Stringency Index",
+                       subtitle = "Europe") +
+  aes(colour = country) +
+  xlim(as.Date(c('1/1/2020', '5/11/2020'), format="%d/%m/%Y") ) +
+  ylim(0,100) +
+  scale_x_date(date_breaks = "1 month" , date_labels = "%b") +
+  theme_half_open(12) +
+  background_grid(minor = 'none') +
+  geom_smooth(colour = "green", method = "loess", group = 1, se = FALSE, size = 1.5) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#Filtering stringency indexes only from North America
+Sub_NAmerica <- filter(StringencyData, continent == "North America")
+NAmericaplot <- ggplot(Sub_NAmerica, aes(x = Date, y = strength, group = country)) +
+  geom_line(colour = "black", se = FALSE,  alpha=0.5, stat = 'smooth') + labs(x = "Year 2020", y = " ",
+                       subtitle = "North America") +
+  aes(colour = country) +
+  xlim(as.Date(c('1/1/2020', '5/11/2020'), format="%d/%m/%Y") ) +
+  ylim(0,100) +
+  scale_x_date(date_breaks = "1 month" , date_labels = "%b") +
+  theme_half_open(12) +
+  background_grid(minor = 'none') +
+  geom_smooth(colour = "green", method = "loess", group = 1, se = FALSE, size = 1.5) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#Filtering stringency indexes only from South America
+Sub_SAmerica <- filter(StringencyData, continent == "South America")
+SAmericaplot <- ggplot(Sub_SAmerica, aes(x = Date, y = strength, group = country)) +
+  geom_line(colour = "black", se = FALSE,  alpha=0.5, stat = 'smooth') + labs(y = " ", x = " ", 
+                                       subtitle = "South America") +
+  aes(colour = country) +
+  xlim(as.Date(c('1/1/2020', '5/11/2020'), format="%d/%m/%Y") ) +
+  ylim(0,100) +
+  scale_x_date(date_breaks = "1 month" , date_labels = "%b") +
+  theme_half_open(12) +
+  background_grid(minor = 'none') +
+  geom_smooth(colour = "green", method = "loess", group = 1, se = FALSE, size = 1.5) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#plot row contains all three required plots
+plot_row <- plot_grid(EuropePlot, NAmericaplot, SAmericaplot, nrow = 1)
+
+##adding a title
+title <- ggdraw() +
+  draw_label(
+    "Strength of lockdown measures across different continents",
+ #   fontface = 'bold',
+    x = 0,
+    hjust = -0.06
+  ) +
+  theme(
+    # add margin on the left of the drawing canvas,
+    # so title is aligned with left edge of first plot
+    plot.margin = margin(0, 0, 0, 7)
+  )
+
+plot_grid(
+  title, plot_row,
+  ncol = 1,
+  # rel_heights values control vertical title margins
+  rel_heights = c(0.1, 1)
+)
+```  
+The black lines show the Stringency Index for an individual country’s government response throughout the pandemic. They are split by continents for ease of viewing and because continental COVID-19 cases tend to be more similar to each other. The green line shows the mean index across the whole continent so the general trend can be seen.  
+Each continent’s government restrictions peaked in May and have slowly descended since then. Europe’s stringency index decreased the fastest, falling to below 50 throughout August and September. However, the intensity of interventions is now rising once more into November. North and South America have both seen slower decreases in their restrictions with South America only falling to a low of 70 on the index from a high of around 85.  
+Throughout this report, many references to these graphs are made to compare changing government restrictions with the population’s activity in retail and hospitality sectors. It should be noted that it is incredibly hard to quantify policies, as there are not clearly defined stages of intensity. The given dataset and indexes do not tell the complete picture, but are an excellent guide to approximate intensity.   
+
+# 2. Case Analysis  
+```{r chunkdailycases, echo=FALSE, comments= FALSE, message = FALSE, warning= FALSE}
+RawTidyCovidData <- RawTidyCovidData %>%
+  mutate(date = as.Date(parse_date_time(RawTidyCovidData$date,orders=c("y","ym","ymd")))) 
+
+firstdiff <- function(x) {
+  shifted <- c(0,x[1:(length(x)-1)])
+  result = x-shifted
+  return(result)
+}
+
+DailyCases <- RawTidyCovidData %>%
+  mutate(daily_confirmed = firstdiff(confirmed))
+
+DailyCases <- left_join(DailyCases, Countries1, by = "country")
+DailyCases <- mutate(DailyCases, country = factor(country), 
+                    continent = factor(continent))
+DailyCases <- DailyCases %>%
+  filter(continent %in% c('Europe', 'North America', 'South America'))
+
+local_r <- function(cases, window_width) {
+  local_r <- sapply((window_width/2+1):(length(cases)-window_width/2), function(t) {
+    index <- (t-window_width/2):(t+window_width/2)
+    data <- data.frame(date=1:length(cases), y=as.numeric(cases))
+    negative_binomial_fit <- glm.nb(y ~ 1 + date, data  %>% slice(index))
+    r <- as.numeric(coef(negative_binomial_fit)["date"])
+    return(r)
+  })
+  return(c(rep(local_r[1],window_width/2),local_r,rep(local_r[length(local_r)],window_width/2)))
+}
+
+window_width = 14 # local regression over a two week window
+
+
+DailyCasesEU <- DailyCases %>%
+  filter(continent == 'Europe') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE))%>%
+  mutate(tma = rollmean(Total, k = 7, fill = NA, align = "right")) %>%
+  filter(!is.na(tma)) 
+
+DailyCasesNA <- DailyCases %>%
+  filter(continent == 'North America') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE)) %>% 
+  mutate(tma = rollmean(Total, k = 7, fill = NA, align = "right")) %>%
+  filter(!is.na(tma)) 
+
+DailyCasesSA <- DailyCases %>%
+  filter(continent == 'South America') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE)) %>%
+  mutate(tma = rollmean(Total, k = 7, fill = NA, align = "right")) %>%
+  filter(!is.na(tma))
+
+GlobalCOVIDDailyCases <- merge(DailyCasesEU, DailyCasesNA, all = TRUE)
+GlobalCOVIDDailyCases <- merge(GlobalCOVIDDailyCases, DailyCasesSA, all=TRUE)
+```
+
+## Case Data   
+The changing numbers of daily COVID-19 cases show how the pandemic spreads across Europe and America, and therefore its impact on OmniCorp.  
+Data on the number of daily confirmed cases per country has been obtained from the tidycovid19 dataset (Gassen, 2020). The graph below groups cases by continent, with a 7 day lagging moving average calculated for each continent in order to observe the general trend. This minimises any case reporting irregularities such as a batch of cases being released all at once or a fall in weekend case reporting which was seen in many major nations.  
+
+```{r chunkdailyplot, echo=FALSE, comments= FALSE, message = FALSE, warning= FALSE, fig.width=5, fig.asp=0.618, fig.align='center'}
+GlobalCOVIDDailyCases %>%
+  filter(date != '2020-09-23') %>%
+  ggplot(aes(x=date, y=Total, col=continent, group=continent)) +
+  geom_point(alpha=0.5,size=0.5)  +
+  geom_line(aes(y = tma, col=continent, group=continent), size=1) +
+  theme_light() +
+  xlab("Date") +
+  ylab("Confirmed Cases per day") +
+  ggtitle("Global Waves of COVID-19",
+  subtitle = "Drawn from tidycovid19 dataset") +
+  theme(legend.position = 'bottom') +
+  labs(col='Continent') +
+  scale_x_date(date_breaks = "months", date_labels = "%b-%y")
+```
+
+The graph shows that the pandemic began earlier in Europe than other continents, reaching 100 cases per day as early as 25th February compared to 7th March and 13th March for North and South America respectively. Europe and North America’s first waves followed almost exactly the same growth pattern with North America lagging behind Europe by approximately 2 weeks with Europe reaching ‘first wave’ peak of 48737 cases and North America with 37035 cases.  
+Both continents then stem the growth of cases throughout April, with North America reporting a low of 22089 cases on 17th May and Europe with an extraordinary low of 5343 cases on 28th June. However, easing of restrictions mentioned earlier, resulted in the widely reported ‘second wave’. Cases grew exponentially once more, reaching a ‘second wave’ peak of 89021 on 16th July in North America. A recent uptick of cases in North America indicates a potential third wave, but our data only extends to the 22nd September so is inconclusive.  
+From our most recent data, Europe’s cases are growing exponentially, reaching a maximum on 21st September, of 82203 cases. This is likely the reason for increasing government interventions again, as seen earlier.
+South America has not followed the similar ‘wave’ pattern seen in Europe and North America. Instead, cases grew more slowly but consistently, with no visible contraction of the pandemic until after the 13th August peak of 94021 cases. As of 22nd September, it appears to be contracting but not significantly, which is likely the reason government interventions have remained relatively intense.   
+However, cases are usually only reported after a confirmed positive test, and in the early days of the pandemic many country’s testing infrastructure was limited, suggesting cases may have been left unreported. Consequently, ‘first waves’ are likely to be grossly underestimated in real terms in the graph.  
+ 
+```{r chunkdailyR, echo=FALSE, comments= FALSE, message = FALSE, warning= FALSE}
+DailyCasesEU2 <- DailyCases %>%
+  filter(daily_confirmed > 0) %>%
+  filter(continent == 'Europe') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE))
+DailyCasesEU2 <- DailyCasesEU2 %>%
+  mutate(local_R = exp(4*local_r(DailyCasesEU2$Total, window_width))) %>% 
+  filter(Total >= 100)
+
+DailyCasesNA2 <- DailyCases %>%
+  filter(daily_confirmed > 0) %>%
+  filter(continent == 'North America') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE))
+DailyCasesNA2 <- DailyCasesNA2 %>%
+  mutate(local_R = exp(4*local_r(DailyCasesNA2$Total, window_width))) %>% 
+  filter(Total >= 100)
+
+DailyCasesSA2 <- DailyCases %>%
+  filter(daily_confirmed > 0) %>%
+  filter(continent == 'South America') %>%
+  group_by(continent, date) %>% 
+  summarise(Total = sum(daily_confirmed, na.rm = TRUE))
+DailyCasesSA2 <- DailyCasesSA2 %>%
+  mutate(local_R = exp(4*local_r(DailyCasesSA2$Total, window_width))) %>% 
+  filter(Total >= 100)
+
+DailyR <- merge(DailyCasesSA2, DailyCasesEU2, all=TRUE) 
+DailyR <- merge(DailyR, DailyCasesNA2, all=TRUE)
+```
+
+## Epidemological Background   
+In building a model to describe the spread of COVID-19 it is important to define some commonly used epidemiological terms. ${R_0}$ is called the basic reproduction number, the expected number of people infected by someone with the virus in a population with no immunity. However for many diseases, there is some immunity, and so we use ${R}$ to refer instead to the effective reproduction number. This is the expected number of people infected by an infected person in the population through which the disease is spreading.  
+For our simplistic model, we also consider $T_c$, the time that an individual has the disease before they infect an expected $R$ number of people. We assume here that this value is fixed, meaning an individual only infects another at the specific time, $T_c$. For COVID-19, early studies have provided an estimation of $T_c$ as 4 (Nishiura, Linton, and Akhmetzhanov, 2020).  
+We model the number, $I(t)$, of infected individuals at time $t$ as  
+$$
+I(t) = {I(0)}R^{t/T_c}= {I(0)}{exp(rt)}
+$$
+where $r = {log(R)}/{T_c}$ is the rate of exponential growth of infections. We can write this as a linear model where we take the log of infections:  
+$$
+log[{I(t)}] = log[{I(0)}] + {r}{t}
+$$  
+## Deploying the model  
+We can construct a locally linear negative binomial model for a 14 day window surrounding the chosen date using the format described above. From this, we can calculate the local R rate from our model at that time, providing us with useful information about the dynamics of the epidemic. Under the simplest model, if $R > 1$ the number of infections will grow exponentially in time, whereas if $R < 1$ then the number of infections will decrease exponentially in time.  
+This model has been fitted to the cases data displayed above and modelled by continent. The local R value is then extracted at that date, by $R = exp({r}{T_{c}})$ with $r$ and $T_{c}$ defined as above. The local R values have also only been calculated upon a continent hitting 100 cases, as for values below this, models can become easily distorted and we gain little extra information from this data. The black line also indicates the crucial value of $R = 1$ so we can visualise the local R value with respect to this more easily.  
+```{r chunkRplot, echo=FALSE, comments= FALSE, message = FALSE, warning= FALSE,  fig.width=4.9, fig.asp= 0.618, fig.align='center'}
+DailyR %>% ggplot(aes(x = date,
+                                y = local_R, col = continent)) +
+  geom_line(aes(group=continent, col = continent), size=1) +
+  scale_x_date(date_breaks = "months", date_labels = "%b-%y") +
+  geom_line(y=1, col='black') +
+  theme_light() +
+  xlab("Date") +
+  ylab("Local R Rate") +
+  ggtitle("R Rates since the start of the pandemic",
+  subtitle = "Drawn from tidycovid19 dataset") +
+  theme(legend.position = 'bottom') +
+  labs(col='Continent') 
+```
+
+The graph shows that the R rate has fallen substantially in every continent since the early days of the pandemic. This is likely due to the implementation of strong government interventions forcing the virus to contract. Both South and North America witnessed the steepest fall in their R rate as opposed to Europe’s rate which took slightly longer to fall. However, it is worth noting that while South America’s rate fell below 1.5 very quickly, it didn’t fall below 1 for the first time until 9th June compared to 31st March and 8th April for Europe and North America respectively. This failure to get the rate below 1 quickly enough is likely the cause of their apparent ‘singular wave’ compared to the other two continents mentioned.  
+We also saw earlier that Europe and North America eased off government intervention following May/June. It is clear to see the impact of this; the R rates crept up slowly above 1, leading to the aforementioned ‘second wave’ in both continents. While North America managed to moderately control their rate in mid July, Europe’s R rate has only dipped below 1 once since 3rd July, leading to an increase in government restrictions again which have their own implications on people, businesses and the wider economy.  
+While this model is useful to observe a general trend, it does have its limitations. Most notably it relies on a constant value of $T_c$, but an infected individual is unlikely to pass on the virus at one specific time. Also, the value of $T_c = {4}$ is only from early studies and has yet to be confirmed. Additionally, cases are only reported once a positive test has been confirmed. During early days of the pandemic, many country’s testing infrastructure was limited resulting in cases left unreported.  
+# 3. Changes in behaviour
+```{r chunkstringency, echo=FALSE}
+RawTidyCovidData<-as_tibble(RawTidyCovidData)
+CountriesIndex<- dplyr::select(Countries, "Continent_Name","Country_Name","Three_Letter_Country_Code" )
+CountriesIndex<-rename(CountriesIndex, c("continent"="Continent_Name", "country"="Country_Name","iso3c"= "Three_Letter_Country_Code"))
+
+StringencyData <- StrIdxData
+StringencyData <- StringencyData %>%
+  mutate(Date = as.Date(parse_datetime(StringencyData$Date,
+                                        format = "%d/%m/%Y")))
+StringencyData <- {StringencyData %>% as_tibble() %>% 
+  rename("iso3c" = "Code", "date" = "Date") %>% 
+  left_join(CountriesIndex, by = "iso3c") }
+StringencyData$Entity<- as.factor(StringencyData$Entity)
+StringencyData$continent <- as.factor(StringencyData$continent)
+StringencyData <- filter(StringencyData, continent %in% c("Europe", "North America", "South America"))
+StringencyData<- StringencyData[, 1:5]
+
+GDPperCapitaData<-rename(GDPperCapitaData, "Entity"="country", "GDPperCap" = "2018")
+
+TidyDataAllVariables<-full_join(RawTidyCovidData, CountriesIndex, by = "iso3c")
+TidyDataAllVariables<- { TidyDataAllVariables %>% 
+    mutate(country.x = factor(country.x), continent = factor(continent)) %>%
+    rename("country" = "country.x") %>%
+    dplyr::select(-"country.y",-"X")}
+TidyDataAllVariables<- filter(TidyDataAllVariables, continent %in% c("North America", "Europe", "South America"))
+
+SubDataSelection<-TidyDataAllVariables[,c(1,2,3,11:26,36)]
+SubDataSelection<- mutate(SubDataSelection, day_of_week = weekdays(date))
+SubDataSelection2 <- SubDataSelection[, c(1,2,3,12:17,20,21)]
+
+Stringency_Activity_Data <- left_join(StringencyData[,c(1,2,3,4)],SubDataSelection2[,c(1,3,4)], by = c("iso3c","date"))
+CountryFactors<-TidyDataAllVariables[,c(1,2,27:32,34)]
+
+```
+##  Changing Activity Levels During Lockdown  
+Since OmniCorp has stakes in the retail and hospitality sector, it’s useful to analyse the impact of government intervention on people’s behaviour within those sectors, so as to identify opportunities and threats.  
+The graphs below examine the changes in activity of people in Europe and America during ‘lockdown’, and compares them to strength of government measures. The first graph (above) uses the Google Community Mobility Reports data collated in the tidycovid19 data set (Gassen, 2020). It shows the activity level in different types of areas (recreational, residential etc.) compared to a baseline, as a line of best fit calculated for countries in Europe, North America and South America.  
+The second graph shows the changing ‘Stringency Index’ (Hale et al., 2020) over time. The black line is a line of best fit calculated for all countries in Europe and America, showing the changing stringency in overall government response over time. Additionally, the coloured lines show the changes in stringency index for 7 major countries where OmniCorp operate.
+```{r chunkactivityplots, echo=FALSE, warning=FALSE, message=FALSE,  fig.height = 4, fig.align='center'}
+
+EuropeCountrySelection <- c("United Kingdom", "Spain", "Italy", "France", "Russia")
+NorthAmericaCountrySelection <- c("Canada", "United States", "Mexico", "Puerto Rico", "Panama")
+SouthAmericaCountrySelection <- c("Brazil","Argentina", "Peru", "Chile", "Venezuela")
+CountrySelection <- c("United Kingdom", "United States", "Russia", "Poland", "France")
+CountrySelection2 <- c("United Kingdom", "Italy", "Poland", "Chile", "Brazil", "Canada", "Mexico")
+
+# Plot of Changing Activities over Lockdown period
+gcmractivies_date <- SubDataSelection %>% ggplot(mapping = aes(colour = country)) +
+    geom_smooth (mapping = aes( x = date, y = gcmr_retail_recreation, colour = "Retail/Recreation"),se=FALSE)+
+    geom_smooth (mapping = aes( x = date, y = gcmr_grocery_pharmacy, color = "Grocery/Pharmacy" ),se=FALSE)+
+    geom_smooth (mapping = aes( x = date, y = gcmr_parks, color = "Parks"),se=FALSE) +
+    geom_smooth (mapping = aes( x = date, y = gcmr_transit_stations, color = "Transit Stations"),se=FALSE) +
+    geom_smooth (data = SubDataSelection, mapping = aes( x = date, y = gcmr_workplaces, color = "Workplaces"),se=FALSE) +
+    geom_smooth (mapping = aes( x = date, y = gcmr_residential, color = "Residential"),se=FALSE) +
+    scale_colour_manual(name="Type of Place", values=c("chartreuse", "chartreuse4", "darkmagenta", "darkslategray1","deeppink2", "deeppink4")) +
+    labs(title = "Change In Activities Over the Duration of Lockdown", x = "Date", y = 'Activity Level \n (% change from baseline)', caption = "Dashed line is at the date where the line of best fit for stringency index is at its maximum")+
+    coord_cartesian(xlim = as.Date(c("2020-02-20", "2020-08-10"))) + 
+    theme(axis.title.y = element_text(size=9),axis.title.x = element_blank(), axis.text.x = element_blank(), plot.caption = element_text(face = "italic", size = 6)) +
+    annotate('rect', xmin= as.Date("2020-03-01"), xmax= as.Date("2020-04-01"), ymin=-75, ymax=75, color="transparent", fill="pink", alpha=0.3) +
+    geom_vline(xintercept = as.Date("2020-04-21"), linetype = "dashed", colour = "green") +
+  theme_light() +
+  theme(plot.caption = element_text(hjust = 0.3))
+
+
+# Plot of Stringency Index Over Time
+Stringency_Date_plot <- ggplot() +
+    geom_line(data = filter(StringencyData, Entity %in% CountrySelection), mapping = aes(x = date, y= stringency_index, group = Entity, color = Entity)) +
+    geom_smooth(data = StringencyData, mapping = aes(x= date, y = stringency_index), color = "black") +
+    labs(title = "Strength of 'Lockdown' Measures Over Time", x =  "Date", y = "Stringency Index", color = "Country") +
+    coord_cartesian(xlim = as.Date(c("2020-02-20", "2020-08-10"))) +
+    geom_rect(inherit.aes=FALSE, aes(xmin= as.Date("2020-03-01"), xmax= as.Date("2020-04-01"), ymin=0, ymax=100), color="transparent", fill="pink", alpha=0.3) +
+    geom_vline(xintercept = as.Date("2020-04-21"), linetype = "dashed", colour = "green") +
+  theme_light()
+
+ggarrange(gcmractivies_date, Stringency_Date_plot, 
+          ncol = 1, nrow = 2, align = "v")
+
+
+```
+The graphs show that during the initial stages of ‘Lockdown’(highlighted in red), increased strength in government response led to people spending more time in residential areas (at home) than in public areas. Retail, recreational and transport activity were most affected by ‘lockdown’ measures, whereas activity in parks, grocery and pharmaceutical stores were less affected. This could be due to the less severe  ‘lockdown’ measures implemented at parks and grocery/pharmaceutical stores, with the latter being considered necessary, and the former less dangerous for the spreading of COVID-19 with their larger, outdoor, open spaces (Healey, 2020).  
+ It is interesting to consider when the lines of best fit peak. The line of best fit for stringency index is at its maximum is on the 21st of April whereas the greatest decrease in activity level for parks, retail and recreational places, transit stations and work places is at the beginning of April. This suggests that the changing activity levels don’t directly relate to the strength in government response, that people are making decisions about where they visit, not only based on government restrictions.  
+Perhaps after the initial shock of the spreading pandemic, people became more assured of the safety measures implemented, and so had more confidence to visit public places, or instead became frustrated by staying home.  
+Alternatively, their changing views about the severity of the pandemic could have led them to deviate from imposed government restrictions; People over time were made aware of the lower death rate and those less affected by the disease, becoming less concerned about the effect the virus could have on them. In the U.K., people’s changing view of the dangers of COVID-19 is shown in a report by Thomas Collins and Anand Pillai (2020).   
+If more data was collated about the ages of people taking part in each activity, we could learn more about the reasons for the disconnection between ‘Lockdown’ strength and changing activity levels. Since the pandemic affects younger people less than older people, it’s possible they were the ones visiting public places in spite of the restrictions. Since the data was collected through Google Mobile Reports, there is likely to be a bias towards a younger age group; The graphs aren’t perfectly reflective of society as a whole since older people are less likely to own a smart phone and be included in the data.  
+## The Effect of Income on Imposed Government Restrictions  
+The following looks at the direct relationship between Stringency Index (Hale at al., 2020) and Recreational/Retail activity, and how that differs between countries with different GDPs per capita. The data for GDP per capita is from Gapminder (2020), measured in 2018 in US-\$ as reported by the world bank. The values for recreational/retail activity shown are averages calculated for the same country and Stringency index.   
+```{r chunkactivityplot2, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center'}
+# aggregating, calculating average retail/rec activity for  the same date and Stringency index 
+avg_rec_activity<-aggregate(Stringency_Activity_Data["gcmr_retail_recreation"], by = Stringency_Activity_Data[c("iso3c","stringency_index")],FUN = function(z) mean(z, na.rm = TRUE))
+
+avg_rec_activity<-{left_join(avg_rec_activity,Stringency_Activity_Data[,c(1,2)],by = c("iso3c")) %>%
+    distinct()}
+avg_rec_activity<-as_tibble(distinct(left_join(avg_rec_activity, GDPperCapitaData, by = "Entity")))
+avg_rec_activity<-{subset(avg_rec_activity,!(is.na(GDPperCap)|is.na(stringency_index)|is.na(gcmr_retail_recreation))) %>%
+    mutate(bin_GDPpercap = cut_interval(GDPperCap, n=9))}
+avg_rec_activity$bin_GDPpercap<-as.factor(avg_rec_activity$bin_GDPpercap)
+
+bin_GDPpercap.labs <- c("1660 and 11900","11900 and 22100","22100 and 32300","32300 and 42600","42600 and 52800","52800 and 63000","63000 and 73200","73200 and 83500","83500 and 93700")
+names(bin_GDPpercap.labs) <- levels(avg_rec_activity$bin_GDPpercap)
+
+Stringency_Activity_plot <- {ggplot(data = avg_rec_activity) +
+    geom_point(mapping = aes(x = stringency_index,y = gcmr_retail_recreation), color = "black", size = 1, show.legend = FALSE)+
+    geom_smooth(mapping = aes(x = stringency_index, y = gcmr_retail_recreation), method = "loess", size = 0.5, color = "darkslategray1",fullrange=TRUE)+
+    facet_wrap(~ bin_GDPpercap, labeller = labeller(bin_GDPpercap = bin_GDPpercap.labs)) +
+    coord_cartesian(xlim = c(0,75), ylim = c(-80,5)) +
+    labs(title = "How GDP Per Capita Influences the Effect of Government Restrictions", subtitle = "GDP per capita (measured in) between:", x = "Stringency Index", y = "Retail/recreation Activity" , caption = "note: no countries in 2018 recorded with a GDP per Capita between 73200 and 83500 US$") +
+    theme(plot.caption = element_text(face = "italic", size = 8), axis.title = element_text(face = "bold"), plot.title = element_text(face = "bold"))} +
+  theme_light()
+
+Stringency_Activity_plot
+```  
+We can see that for all income levels, at higher stringency levels the activity in retail and recreational areas decreases at a higher rate (shown by the concave slope of the graphs). An exception would be GDPs per capita between 63000 and 73200 where we see a slight peak - possibly caused by a lack of data for that split.   
+For all income levels, at higher stringency levels the activity in retail and recreational areas decreases at a higher rate (shown by the concave slope of the graphs). An exception would be GDPs per capita between 63000 and 73200 where we see a slight peak - possibly caused by a lack of data for that split.  
+Furthermore, at higher income levels, the stringency index has a greater effect on retail/recreational activity than at lower income levels. At a stringency level of 80, there is an average 75% decrease in recreational/retail activity for countries with a GDP per capita between 83500 and 93700 \$ but only a 40% decrease for those between 1660 and 11900. For those between 42600 and 52800 there is a 65% decrease. It is important to note however that the data collected for the countries with the highest GDP per capita level (83500-93700 \$) was of only one country, and thus there is much uncertainty as to whether that country having a greater decrease in recreation/retail activity was because of their GDP per capita.  
+It is not clear from the above whether the difference in response to government restrictions is due to a specific individuals wealth, or the overall wealth of a country. To determine this more conclusively, an analysis could be performed with specific areas within countries. The GDP per capita for specific cities for example is likely to be more reflective of an individual’s wealth within that city than the overall GDP per capita of a country. Given more data and time, a regression model could be constructed, to try and obtain an actual value for the influence of GDP on Retail and Recreation Activity.  
+
+# 4. Changing Commercial Behaviours   
+
+```{r chunkpurchases, echo=FALSE, message=FALSE, warning=FALSE}
+Internet <- Trade1 %>% 
+  dplyr::select(TIME, GEO, NACE_R2, Value)
+EU <- filter(Internet, GEO == "European Union - 27 countries (from 2020)")
+EU$Value <- as.numeric(EU$Value)
+names(EU)[names(EU) == "NACE_R2"] <- "Retail_Trade"
+
+p3 <- ggplot(EU, aes(x = TIME, y = Value, fill = Retail_Trade)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  xlab("Month") +
+  ylab("Percentage Change(%)") +
+  ggtitle("Retail turnover in \nEuropean Union (YoY)",
+  subtitle = "Data source: eurostat") +
+  theme(panel.background = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(size = 8),
+        axis.text.x = element_text(size = 7, angle = 60, hjust = 1),
+        axis.text.y = element_text(size = 7),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.key.size = unit(0.7,"line"),
+        legend.title = element_text(size = 10)) 
+
+UKS <- filter(Trade2, (Country %in% c("United Kingdom", "United States")))
+p4 <- ggplot(UKS, aes(x = reorder(Category, -Change), y = Change, fill = Country)) + 
+  geom_bar(stat = "identity", position = "dodge", width = 0.8) + 
+  coord_flip() +
+  xlab("Country") +
+  ylab("Percentage Change(%)") +
+  ggtitle("Shifting to online purchases \ndue to COVID-19 pandemic",
+  subtitle = "survey time period: May 25 to 31, 2020\nData source: statista") +
+  theme(panel.background = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(size = 8),
+        axis.text = element_text(size = 7),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.key.size = unit(0.7,"line"),
+        legend.title = element_text(size = 10))
+```  
+## Nature of sales   
+Having seen a reduction in activity levels at retail areas, we explore here the financials of retail sectors during the pandemic: whether there’s a shift in demand from brick-and-mortar retail to e-commerce, suggested by this decrease. The data was downloaded from eurostat (2020) and statista (2020). The eurostat data consists of the monthly track record of total turnover and volume of sales in wholesale and retail trade in Europe. The statista data consists of the survey report collected from participants in Germany, the UK, and the US on the changes in consumer purchasing behaviour – whether they’re buying products online or in person.  
+The first graph (left) compares the percentage change in total retail trade sales, with that of sales via mail order or internet in the EU (by month vs previous year). The second (right), compares the percentage sales change (by month vs previous year) for specific listed categories in the U.K and U.S. 
+```{r chunkplotshopping, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4, fig.asp= 0.55, fig.align='center'}
+ggarrange(p3, p4, ncol = 2, nrow = 1,
+          widths = c(3,5))
+```  
+The first graph shows, in the EU, an increasing trend in retail trade via mail order or internet, while a decreasing trend in total retail trade. Retail sales via mail order or the Internet in April 2020 had increased by 29.7% compared to April 2019, while total retail sales diminished by 17.6%. The increase in retail trade via mail order or Internet hits it peak at May 2020, with an increase in percentage of 39.2%.  This strongly implies COVID-19 has led to this shift in demand from brick-and-mortar retail to e-commerce.  
+The second graph shows that in both the United States and United Kingdom, consumers have shifted their purchasing behaviour online, likely due to COVID-19. Online purchases in the food and drink delivery category had increased 30% in the U.K (vs last year), compared to 24% in the U.S. Comparatively, the US had their highest change in restaurant delivery or takeaway (31%), compared to 19% in the UK. Interestingly, both countries had their lowest shift to online purchases in the Financial products and services category. Both countries significantly increased the proportion of their spend online. It remains to be seen whether this trend continues after ‘Lockdown’ and consequent restrictions are over or if the numbers were artificial due to physical shops and restaurants closing for a limited period during the pandemic as seen earlier.   
+These conclusions assume that the sample of trade record is representative of the total retail trade in the European Union, and the sample of consumers is representative of the population in the United Kingdom and the United States.  
+
+## Effects on Corporations   
+The 2020 pandemic affected all types of businesses. The following section reviews the share prices of different companies to see what effect the government lockdown measures had on them using data obtained from Yahoo Finance (2020) between 1/12/2019-25/11/2020. The stringency index (Hale et al., 2020) is used to compare how different stocks and shares performed during the pandemic and the effect, if any, on their price.   
+Below, the largest stock markets from North America, South America and Europe are compared (Euronext isn’t used since it can’t be compared to the stringency index of a single country so instead the FTSE100 is used as a measure for Europe). The stringency index is split into two different sections: Low - an index score of 0-50; and High - an index score of 50-100. This can be done since there is little data for values between 30-70, due to governments generally putting multiple lockdown measures in to place at the same time causing jumps in the index. Splitting it up like this will also make it easier to see the general trends of each market.   
+```{r chunkstockdata, fig.width=5, fig.asp= 0.618, fig.align='center'}
+str <-StrIdxData
+NYSE$Date <- as.Date(NYSE$Date,"%Y-%m-%d")
+NYSE$Open <- as.numeric(NYSE$Open)
+str$Date <- as.Date(str$Date,"%d/%m/%Y")
+strUSA <- subset(str, str$Code == "USA")
+NYSE$company <- c(rep("NYSE", times = 251))
+big2 <- left_join(NYSE, strUSA)
+big2 <- na.omit(big2)
+big2$stringency_index <- car::recode(big2$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+bove$Date <- as.Date(bove$Date,"%Y-%m-%d")
+bove$Open <- as.numeric(bove$Open)
+bove$Open <- bove$Open/10
+strBRA <- subset(str, str$Code == "BRA")
+bove$company <- c(rep("Bovespa", times = 246))
+big1 <- left_join(bove, strBRA)
+big1 <- na.omit(big1)
+big1$stringency_index <- car::recode(big1$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+ftse$Date <- as.Date(ftse$Date,"%Y-%m-%d")
+ftse$Open <- as.numeric(ftse$Open)
+strUK <- subset(str, str$Code == "GBR")
+ftse$company <- c(rep("FTSE100", times = 300))
+big <- left_join(ftse, strUK)
+big <- na.omit(big)
+big$stringency_index <- car::recode(big$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+yee <- big %>%  
+  dplyr::select(Open, company, stringency_index)
+yee2 <- big1 %>%  
+  dplyr::select(Open, company, stringency_index)
+yee3 <- big2 %>%  
+  dplyr::select(Open, company, stringency_index)
+
+lottahelp2 <- rbind(yee, yee2, yee3)
+
+
+
+ggplot(data = lottahelp2, aes(x=company, y=Open, 
+                              col = fct_reorder(stringency_index, Open, .desc = TRUE))) + 
+  geom_boxplot() + 
+  labs(title = "High vs Low Stringency Index for Stock Markets" ,x = "Stock Market", 
+       y = "Starting Value of Stock on a Specific Day", col = "Stringency Index Strengh") +
+  scale_color_manual(labels = c("Low", "High"), values = c("blue", "red")) + 
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = 'bottom', axis.title.y = element_text(hjust = 0.8))
+
+
+```  
+The data shows a clear correlation between stronger lockdown measures and lower stock prices. This is likely due to people being uncertain about the future of the markets as no one knew how the lockdown measures announced would affect different companies.   
+Stock markets depend on many different factors and so any decline in price may not be a direct cause of the lockdown measures. With further investigation we could add different variables to try and distinguish between whether there was causation or just correlation.  
+The graphs below compare specific companies from two different sectors. The first compares the stocks of the 5 biggest grocery chains in the UK: Tesco, Morrisons, M&S, Ocado and Sainsburys against the stringency index. Ocado’s share price is scaled down by a factor of 10 so that it can be compared with the others.   
+The second plot compares stock values of mostly American owned technology firms. The Amazon share price is scaled down by a factor of 20 and the Google share price by a factor of 10, allowing them to fit on the same graph, for easier comparison. We use Yahoo Finance (2020) and the stringency index as before (Hale et al., 2020) for these plots.   
+
+``` {r chunkukusstocks, out.width="50%", fig.height=5, fig.asp=0.68}
+tesco$Date <- as.Date(tesco$Date,"%Y-%m-%d")
+strUK <- subset(str, str$Code == "GBR")
+tesco$company <- c(rep("Tesco", times = 255))
+neat <- left_join(tesco, strUK)
+neat <- na.omit(neat)
+neat$stringency_index <- car::recode(neat$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+morr$company <- c(rep("Morrisons", times = 255))
+morr$Date <- as.Date(morr$Date,"%Y-%m-%d")
+morr$Open <- as.numeric(morr$Open)
+neat5 <- left_join(morr, strUK, by = "Date")
+neat5 <- na.omit(neat5)
+neat5$stringency_index <- car::recode(neat5$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+sain$company <- c(rep("Sainsburys", times = 255))
+sain$Date <- as.Date(sain$Date,"%Y-%m-%d")
+sain$Open <- as.numeric(sain$Open)
+neat6 <- left_join(sain, strUK)
+neat6 <- na.omit(neat6)  
+neat6$stringency_index <- car::recode(neat6$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+mands$company <- c(rep("M and S", times = 255))
+mands$Date <- as.Date(mands$Date,"%Y-%m-%d")
+mands$Open <- as.numeric(mands$Open)
+neat7 <- left_join(mands, strUK)
+neat7 <- na.omit(neat7)  
+neat7$stringency_index <- car::recode(neat7$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+ocado$company <- c(rep("Ocado", times = 255))
+ocado$Date <- as.Date(ocado$Date,"%Y-%m-%d")
+ocado$Open <- as.numeric(ocado$Open)
+ocado$Open <- ocado$Open/10
+neat8 <- left_join(ocado, strUK)
+neat8 <- na.omit(neat8)  
+neat8$stringency_index <- car::recode(neat8$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+help <- neat5 %>%  
+  dplyr::select(Open, company, stringency_index)
+help2 <- neat6 %>%  
+  dplyr::select(Open, company, stringency_index)
+help3 <- neat %>%  
+  dplyr::select(Open, company, stringency_index)
+help4 <- neat7 %>% 
+  dplyr::select(Open, company, stringency_index)
+help5 <- neat8 %>%
+  dplyr::select(Open, company, stringency_index)
+
+lottahelp <- rbind(help, help2, help3, help4, help5)
+
+ggplot(data = lottahelp, aes(x=company, y=Open, 
+                             col = fct_reorder(stringency_index, Open, .desc = FALSE))) +
+  geom_boxplot(outlier.shape = NA) + 
+  labs(title = "High vs Low Stringency Index for Large Food Retailers in the UK" ,
+       x = "Supermarkets", y = "Starting Value of Stock on a Specific Day ",
+       col = "Stringency Index Strengh") + 
+  scale_color_manual(labels = c("Low", "High"), values = c("blue", "red")) + 
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, size = 15), 
+        axis.text.x = element_text(size = 13),
+        axis.text.y = element_text(size = 13),
+        axis.title.x = element_text(size=13),
+        axis.title.y = element_text(size=13, hjust = 0.5),
+        legend.position = 'bottom', 
+        legend.title = element_text(size=13), 
+        legend.text = element_text(size = 13))
+
+amzn$Date <- as.Date(amzn$Date,"%Y-%m-%d")
+strUSA <- subset(str, str$Code == "USA")
+amzn$company <- c(rep("Amazon", times = 252))
+amzn$Open <- amzn$Open/20
+tech1 <- left_join(amzn, strUSA)
+tech1 <- na.omit(tech1)
+tech1$stringency_index <- car::recode(tech1$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+appl$Date <- as.Date(appl$Date,"%Y-%m-%d")
+appl$company <- c(rep("Apple", times = 252))
+tech2 <- left_join(appl, strUK)
+tech2 <- na.omit(tech2)
+tech2$stringency_index <- car::recode(tech2$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+micro$Date <- as.Date(micro$Date,"%Y-%m-%d")
+micro$company <- c(rep("Microsoft", times = 252))
+tech3 <- left_join(micro, strUK)
+tech3 <- na.omit(tech3)
+tech3$stringency_index <- car::recode(tech3$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+goog$Date <- as.Date(goog$Date,"%Y-%m-%d")
+goog$company <- c(rep("Google", times = 252))
+goog$Open <- goog$Open/10
+tech4 <- left_join(goog, strUK)
+tech4 <- na.omit(tech4)
+tech4$stringency_index <- car::recode(tech4$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+face$Date <- as.Date(face$Date,"%Y-%m-%d")
+face$company <- c(rep("Facebook", times = 252))
+face$Open <- face$Open
+tech5 <- left_join(face, strUK)
+tech5 <- na.omit(tech5)
+tech5$stringency_index <- car::recode(tech5$stringency_index, "0:50 =  'low'; 50:100 = 'high'; else = 'no'")
+
+okay <- tech1 %>%  
+  dplyr::select(Open, company, stringency_index)
+okay2 <- tech2 %>%  
+  dplyr::select(Open, company, stringency_index)
+okay3 <- tech3 %>%  
+  dplyr::select(Open, company, stringency_index)
+okay4 <- tech4 %>% 
+  dplyr::select(Open, company, stringency_index)
+okay5 <- tech5 %>% 
+  dplyr::select(Open, company, stringency_index)
+
+lottahelp2 <- rbind(okay, okay2, okay3, okay4, okay5)
+
+ggplot(data = lottahelp2, aes(x=company, y=Open, 
+                              col = fct_reorder(stringency_index, Open, .desc = FALSE))) +
+  geom_boxplot(outlier.shape = NA) + 
+  labs(title = "High vs Low Stringency Index for Large Tech Firms in the USA" ,
+       x = "Tech Firms", y = "Starting Value of Stock on a Specific Day ", 
+       col = "Stringency Index Strengh") + 
+  scale_color_manual(labels = c("Low", "High"), values = c("blue", "red")) + 
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, size = 15), 
+        axis.text.x = element_text(size = 13),
+        axis.text.y = element_text(size = 13),
+        axis.title.x = element_text(size=13),
+        axis.title.y = element_text(size=13, hjust = 0.5),
+        legend.position = 'bottom', 
+        legend.title = element_text(size=13), 
+        legend.text = element_text(size = 13))
+```  
+
+Sainsburys, Marks and Spencers and Tesco all show a similar trend, with their share prices being lower during periods of high government lockdown measures. Morrisons has shown little change and Ocado showed a significant improvement during periods of high lockdown measures. This trend would suggest that those supermarkets with a greater high street presence, with their smaller, local stores suffering more due to the lockdown restrictions as consumer visits to in-person retail stores fell (seen earlier). On the other hand, the online supermarket Ocado performed better due to people preferring their food to be delivered, to reduce contact with other people. This fits with our other findings that food and drink delivery rose significantly among consumers.   
+It can also be seen that the share prices of all the 5 biggest tech firms in America (FAANG) rose when higher restrictions were in place. Lockdown restrictions meant consumers relied more heavily on computers and online resources, as well as having more time to spend on social media.   
+Similarly to the stock markets, the share price of an individual company depends on many factors and therefore this increase in share price across all the big tech firms could be the result of a different variable.  
+
+# 5. Conclusions  
+The data has clearly shown significant changes surrounding the retail and hospitality sectors. We have found that substantial growth has occurred in e-commerce and non physical commercial areas such as technology, and OmniCorp would be wise to attempt to adapt its strategy appropriately. This growth does come at the expense of brick-and-mortar retail which were either forced to shut due to government interventions or suffered a significant fall in visits due to customers fear of the virus.  
+We have seen some variation across different countries and continents, mainly due to different economic profiles and changing pandemic situation with comes with stronger government interventions. It is clear that OmniCorp should not assume that the virus will let up soon as we have seen that, as of 22nd September, cases are rising in two of the three continents they operate in. If further waves carry the same effects that we have explored in this report then there is no reason why OmniCorp would not be badly affected once more.  
+We have also attempted throughout the report to explore the potential for further analysis which would yield further useful information for OmniCorp. This mainly consists of applying regression models and causal effects so that we can understand for future waves specific elements such that OmniCorp can plan appropriately.  
+
+# 6. References  
+Collins, T., Pillai, A. (2020) *Changing perceptions during the COVID-19 pandemic peak in the UK*. Available at: https://www.boa.ac.uk/policy-engagement/journal-of-trauma-orthopaedics/journal-of-trauma-orthopaedics-and-coronavirus/changing-perceptions-during-the-covid-19-pandemic.html (Accessed: 29 November 2020)
+
+Eurostat (2020) *Turnover and volume of sales in wholesale and retail trade - monthly data*. Retrieved from: https://appsso.eurostat.ec.europa.eu/nui/submitViewTableAction.do. (Accessed: 17 November 2020)
+
+Gassen, J. (2020). *tidycovid19*. Retrieved from: https://joachim-gassen.github.io/tidycovid19/. (Accessed: 10 November 2020).
+
+Hale, T., Angrist, N., Cameron-Blake, E., Hallas, L., Kira, B., Majumdar, S., Petherick, A., Phillips, T., Tatlow, H., Webster, S. (2020) "Oxford COVID-19 Government Response Tracker", *Blavatnik School of Government*. Available at: https://www.bsg.ox.ac.uk/research/research-projects/coronavirus-government-response-tracker#data (Accessed 15 November 2020)
+
+Healey, N. (2020) *Coronavirus: why is outdoors safer than inside?*. Available at: https://patient.info/news-and-features/coronavirus-why-is-outdoors-safer-than-inside (Accessed: 29 November 2020)
+
+Kunst, A. (2020) *Shifting to online purchases because of the COVID-19 pandemic 2020, by category*. Retrieved from: https://www.statista.com/statistics/1107859/shifting-to-online-purchases-because-of-the-covid-19-pandemic-by-category/. (Accessed: 17 November 2020)
+
+Nishiura, H., N. M. Linton, and A. R. Akhmetzhanov (2020) "Serial Interval of Novel Coronavirus (Covid-19) Infections.", *International Journal of Infectious Diseases*, 93, pp. 284-86.
+
+World Bank via Gapminder (2020) *GDP/capita (US$, inflation adjusted)*. Retrieved from: https://www.gapminder.org/data/ (Accessed: 19 November 2020)
+
+Yahoo (2020) *Yahoo Finance*. Retrieved from: https://uk.finance.yahoo.com. (Accessed: 25 November 2020)
+
+
+
+
+
