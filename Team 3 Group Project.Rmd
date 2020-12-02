@@ -415,12 +415,16 @@ It is not clear from the above whether the difference in response to government 
 # 4. Changing Commercial Behaviours   
 
 ```{r chunkpurchases, echo=FALSE, message=FALSE, warning=FALSE}
+#Selecting the required variables from dataset
 Internet <- Trade1 %>% 
   dplyr::select(TIME, GEO, NACE_R2, Value)
+
+#Filtering Trade records only for EU
 EU <- filter(Internet, GEO == "European Union - 27 countries (from 2020)")
 EU$Value <- as.numeric(EU$Value)
 names(EU)[names(EU) == "NACE_R2"] <- "Retail_Trade"
 
+#Plotting graph using the Trade records
 p3 <- ggplot(EU, aes(x = TIME, y = Value, fill = Retail_Trade)) + 
   geom_bar(stat = "identity", position = "dodge") + 
   xlab("Month") +
@@ -439,7 +443,10 @@ p3 <- ggplot(EU, aes(x = TIME, y = Value, fill = Retail_Trade)) +
         legend.key.size = unit(0.7,"line"),
         legend.title = element_text(size = 10)) 
 
+#Filtering Survey results only from UK and US
 UKS <- filter(Trade2, (Country %in% c("United Kingdom", "United States")))
+
+#Plotting graph using the Survey results
 p4 <- ggplot(UKS, aes(x = reorder(Category, -Change), y = Change, fill = Country)) + 
   geom_bar(stat = "identity", position = "dodge", width = 0.8) + 
   coord_flip() +
